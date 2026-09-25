@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+@keyframes ringpulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px var(--tw-ring-color), 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 0 4px var(--tw-ring-color), 0 0 36px 6px var(--tw-ring-color);
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #020617;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
