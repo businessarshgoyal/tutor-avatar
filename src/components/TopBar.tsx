@@ -18,10 +18,12 @@ function formatElapsed(ms: number) {
 }
 
 export function TopBar({ title, state, startedAt, onEnd, onSimulateDrop }: Props) {
-  const [now, setNow] = useState(Date.now())
+  const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
     if (startedAt === null) return
-    const t = setInterval(() => setNow(Date.now()), 1000)
+    const tick = () => setElapsed(Date.now() - startedAt)
+    tick()
+    const t = setInterval(tick, 1000)
     return () => clearInterval(t)
   }, [startedAt])
 
@@ -49,7 +51,7 @@ export function TopBar({ title, state, startedAt, onEnd, onSimulateDrop }: Props
           </button>
         )}
         <span className="font-mono text-sm tabular-nums text-slate-300" aria-label="Session timer">
-          {startedAt === null ? '00:00' : formatElapsed(now - startedAt)}
+          {startedAt === null ? '00:00' : formatElapsed(elapsed)}
         </span>
         <button
           onClick={onEnd}

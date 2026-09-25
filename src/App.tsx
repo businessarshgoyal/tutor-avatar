@@ -11,7 +11,7 @@ import { createProviders } from './providers'
 const LESSON_TITLE = 'Recursion'
 
 export default function App() {
-  const providers = useMemo(createProviders, [])
+  const providers = useMemo(() => createProviders(), [])
   const session = useTutorSession(providers)
 
   if (session.state === 'idle') {

@@ -157,7 +157,7 @@ export function useTutorSession(providers: Providers) {
     }
     setStartedAt(Date.now())
     void respond(null)
-  }, [avatar, respond, updateState])
+  }, [avatar, respond, setMessages, updateState])
 
   const endSession = useCallback(async () => {
     generation.current++
