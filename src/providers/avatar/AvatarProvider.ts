@@ -1,43 +1,58 @@
-export type AvatarErrorCode = 'disconnected' | 'permission' | 'unknown'
+export type AvatarErrorCode =
+  | 'disconnected'
+  | 'permission'
+  | 'quota'
+  | 'concurrency'
+  | 'avatar_lost'
+  | 'unknown'
 
 export interface AvatarError {
   code: AvatarErrorCode
   message: string
 }
 
+export interface SpeakingEndInfo {
+  /** True when playback was cut short by stopSpeaking(). */
+  interrupted: boolean
+  /** Seconds of audio actually played, when the backend reports it. */
+  playbackPosition?: number
+}
+
+/** Untyped payload for the dev overlay: whatever the underlying transport surfaced. */
+export interface RawAvatarEvent {
+  at: number
+  source: string
+  name: string
+  payload?: unknown
+}
+
 export interface AvatarEvents {
-  /** Fired when the student's speech has been transcribed. */
   onUserSpeech: (text: string) => void
-  /** Fired when the current utterance was cut off before finishing. */
+  /** The student started talking while the tutor was speaking. */
   onInterrupt: () => void
   onSpeakingStart: () => void
-  onSpeakingEnd: () => void
+  onSpeakingEnd: (info: SpeakingEndInfo) => void
   onError: (error: AvatarError) => void
-  /** Optional progress hook: the portion of the utterance spoken so far. */
   onSpeakingProgress?: (spokenText: string) => void
+  /** Emitted when the user's utterance ends (used to measure response latency). */
+  onUserSpeechEnd?: (at: number) => void
+  onRawEvent?: (event: RawAvatarEvent) => void
 }
 
 export type AvatarEventName = keyof AvatarEvents
 
 export interface AvatarProvider {
-  /** Connects to the avatar service. Resolves once the avatar is ready. */
   startSession(): Promise<void>
   endSession(): Promise<void>
-  /**
-   * Speaks a single utterance. Resolves when speaking finishes or is
-   * interrupted. Emits onSpeakingStart / onSpeakingEnd / onInterrupt.
-   */
+  /** Resolves when the utterance has finished playing (or was interrupted). */
   speak(text: string): Promise<void>
   stopSpeaking(): Promise<void>
-  /** Open / close the microphone. Transcripts arrive via onUserSpeech. */
   startListening(): Promise<void>
   stopListening(): Promise<void>
-  /** Text fallback for students without a mic; routed through onUserSpeech. */
+  /** Typed fallback: treated exactly like recognized speech. */
   sendUserText(text: string): void
-  /** Mount point for the avatar's video/image surface. */
   attach(container: HTMLElement): void
   detach(): void
   on<E extends AvatarEventName>(event: E, handler: NonNullable<AvatarEvents[E]>): () => void
-  /** Dev-only helper implemented by mocks to test the reconnect flow. */
   simulateDisconnect?(): void
 }
