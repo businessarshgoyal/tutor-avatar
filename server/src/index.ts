@@ -95,12 +95,13 @@ app.post('/api/tts', ttsLimiter, async (req, res, next) => {
 
 const errorHandler = (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
   if (err instanceof SynthesiaError) {
-    const status = err.status === 429 || err.status === 402 || err.status === 401 || err.status === 403 ? err.status : 502
+    const status = err.status !== null && err.status >= 400 && err.status < 500 ? err.status : 502
     log.warn('session creation failed', { status: err.status, code: err.code, requestId: err.requestId, message: err.message })
     res.status(status).json({ error: err.code ?? 'synthesia_error', message: redactString(err.message), retryable: err.retryable })
     return
   }
   if (err instanceof TtsError) {
+    log.warn('tts failed', { upstreamStatus: err.status, message: err.message })
     res.status(502).json({ error: 'tts_failed', message: 'Speech synthesis failed' })
     return
   }
