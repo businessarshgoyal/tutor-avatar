@@ -27,6 +27,7 @@ const RPC_PLAYBACK_FINISHED = 'lk.playback_finished'
 const RPC_CLEAR_BUFFER = 'lk.clear_buffer'
 
 const AVATAR_JOIN_TIMEOUT_MS = 90_000
+const AVATAR_WARMUP_MS = 1_500
 const CLEAR_BUFFER_ACK_TIMEOUT_MS = 1_500
 
 export interface BrowserSession {
@@ -104,7 +105,8 @@ export class SynthesiaAvatarProvider implements AvatarProvider {
 
     const res = await fetch(`${this.opts.apiBaseUrl}/api/session`, { method: 'POST' })
     const body: unknown = await res.json().catch(() => null)
-    this.raw('server', 'POST /api/session', { status: res.status, body })
+    const redacted = body && typeof body === 'object' && 'token' in body ? { ...body, token: '<redacted>' } : body
+    this.raw('server', 'POST /api/session', { status: res.status, body: redacted })
     if (!res.ok) {
       const err = (body ?? {}) as { error?: string; message?: string }
       throw Object.assign(new Error(err.message ?? `Could not start avatar session (${res.status})`), { code: mapServerError(res.status, err.error) })
@@ -213,9 +215,14 @@ export class SynthesiaAvatarProvider implements AvatarProvider {
     while (performance.now() < deadline) {
       if (room.state === ConnectionState.Disconnected) throw new Error('Disconnected while waiting for the avatar.')
       const avatar = room.remoteParticipants.get(avatarIdentity)
-      const videoPub = avatar?.getTrackPublication(Track.Source.Camera) ?? [...(avatar?.trackPublications.values() ?? [])].find((p) => p.kind === Track.Kind.Video)
-      if (videoPub?.track) {
-        this.raw('synthesia', 'avatar video ready', { identity: avatarIdentity, waitedMs: Math.round(AVATAR_JOIN_TIMEOUT_MS - (deadline - performance.now())) })
+      const pubs = [...(avatar?.trackPublications.values() ?? [])]
+      const videoPub = pubs.find((p) => p.kind === Track.Kind.Video)
+      const audioPub = pubs.find((p) => p.kind === Track.Kind.Audio)
+      if (videoPub?.track && audioPub) {
+        this.raw('synthesia', 'avatar tracks ready', { identity: avatarIdentity, waitedMs: Math.round(AVATAR_JOIN_TIMEOUT_MS - (deadline - performance.now())) })
+        // The worker publishes its tracks slightly before its audio-stream handler is live;
+        // audio sent in that window is dropped, so give it a moment before the first utterance.
+        await sleep(AVATAR_WARMUP_MS)
         return
       }
       await sleep(200)
