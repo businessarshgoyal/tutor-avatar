@@ -14,7 +14,9 @@ npm run lint
 ### Real avatar
 
 ```bash
-cp server/.env.example server/.env   # fill in Synthesia / LiveKit / OpenAI keys (server-only)
+cp server/.env.example server/.env   # fill in Synthesia / LiveKit / TTS (ElevenLabs or OpenAI) keys (server-only)
+# SYNTHESIA_AVATAR_ID is the gallery id shown in Synthesia (bare UUID or av_-prefixed); it must be
+# available to your workspace. The quickstart's "Jenny" (8788bef1-8020-46e0-a8f4-510ea9989b25) works out of the box.
 (cd server && npm install && npm run dev)   # http://localhost:8787
 cp .env.example .env && sed -i 's/=mock/=synthesia/' .env
 npm run dev

@@ -10,6 +10,30 @@ function optional(name: string, fallback: string): string {
   return process.env[name] || fallback
 }
 
+export type TtsConfig =
+  | { provider: 'elevenlabs'; apiKey: string; model: string; voice: string }
+  | { provider: 'openai'; apiKey: string; model: string; voice: string }
+
+/** TTS_PROVIDER picks the backend; defaults to whichever key is present (ElevenLabs wins if both). */
+function resolveTts(): TtsConfig {
+  const explicit = process.env.TTS_PROVIDER
+  const provider = explicit === 'openai' || explicit === 'elevenlabs' ? explicit : process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : 'openai'
+  if (provider === 'elevenlabs') {
+    return {
+      provider,
+      apiKey: required('ELEVENLABS_API_KEY'),
+      model: optional('ELEVENLABS_MODEL', 'eleven_flash_v2_5'),
+      voice: optional('ELEVENLABS_VOICE_ID', 'EXAVITQu4vr4xnSDxMaL'),
+    }
+  }
+  return {
+    provider,
+    apiKey: required('OPENAI_API_KEY'),
+    model: optional('OPENAI_TTS_MODEL', 'gpt-4o-mini-tts'),
+    voice: optional('OPENAI_TTS_VOICE', 'alloy'),
+  }
+}
+
 export const config = {
   port: Number(optional('PORT', '8787')),
   frontendOrigin: optional('FRONTEND_ORIGIN', 'http://localhost:5173'),
@@ -29,11 +53,7 @@ export const config = {
     apiKey: required('LIVEKIT_API_KEY'),
     apiSecret: required('LIVEKIT_API_SECRET'),
   },
-  tts: {
-    openaiApiKey: required('OPENAI_API_KEY'),
-    model: optional('OPENAI_TTS_MODEL', 'gpt-4o-mini-tts'),
-    voice: optional('OPENAI_TTS_VOICE', 'alloy'),
-  },
+  tts: resolveTts(),
   /** Rooms are deleted this long after the last participant leaves (belt-and-braces for lost beacons). */
   roomEmptyTimeoutSec: Number(optional('ROOM_EMPTY_TIMEOUT_SEC', '60')),
   /** Hard cap on a session; the room is torn down when it expires. */
@@ -45,5 +65,5 @@ export const SECRET_VALUES: string[] = [
   config.synthesia.apiKey,
   config.livekit.apiKey,
   config.livekit.apiSecret,
-  config.tts.openaiApiKey,
+  config.tts.apiKey,
 ]
