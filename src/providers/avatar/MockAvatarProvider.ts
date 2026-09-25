@@ -55,7 +55,7 @@ export class MockAvatarProvider implements AvatarProvider {
     if (token !== this.speakToken) return
     this.speaking = false
     this.setCaption('')
-    this.emitter.emit('onSpeakingEnd')
+    this.emitter.emit('onSpeakingEnd', { interrupted: false })
   }
 
   async stopSpeaking(): Promise<void> {
@@ -64,7 +64,7 @@ export class MockAvatarProvider implements AvatarProvider {
     if (this.speaking) {
       this.speaking = false
       this.emitter.emit('onInterrupt')
-      this.emitter.emit('onSpeakingEnd')
+      this.emitter.emit('onSpeakingEnd', { interrupted: true })
     }
   }
 

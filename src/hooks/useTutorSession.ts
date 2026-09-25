@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ChatMessage, CodeExample, Providers } from '../providers'
+import type { ChatMessage, CodeExample, Providers, RawAvatarEvent } from '../providers'
 import { FACTORIAL } from '../providers/chat/MockChatProvider'
 
 export type SessionState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error' | 'reconnecting'
@@ -18,6 +18,13 @@ export interface TranscriptMessage {
 const RECONNECT_ATTEMPTS = 3
 const CLARIFY_PROMPT = "I didn't get that, can you explain again?"
 const RECOVERY_LINE = 'Sorry, we lost the connection for a moment. Where were we?'
+const MAX_RAW_EVENTS = 200
+
+export interface LatencySample {
+  /** ms from end of the student's utterance to the avatar starting to speak. */
+  ms: number
+  at: number
+}
 
 let nextId = 1
 
@@ -35,6 +42,8 @@ export function useTutorSession(providers: Providers) {
   const [micOn, setMicOn] = useState(false)
   const [micError, setMicError] = useState<string | null>(null)
   const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [rawEvents, setRawEvents] = useState<RawAvatarEvent[]>([])
+  const [latency, setLatency] = useState<LatencySample | null>(null)
 
   const generation = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
@@ -70,13 +79,13 @@ export function useTutorSession(providers: Providers) {
   /** Cancels any in-flight reply and streams a new one for `question`. */
   const respond = useCallback(
     async (question: string | null) => {
-      const gen = ++generation.current
       abortRef.current?.abort()
-      const controller = new AbortController()
-      abortRef.current = controller
-
+      // May fire onInterrupt (which bumps the generation), so take our generation afterwards.
       await avatar.stopSpeaking()
       cutOffActiveReply()
+      const gen = ++generation.current
+      const controller = new AbortController()
+      abortRef.current = controller
 
       if (question) {
         setMessages((prev) => [
@@ -201,7 +210,7 @@ export function useTutorSession(providers: Providers) {
     }
     micOnRef.current = true
     setMicOn(true)
-    if (stateRef.current === 'listening') await avatar.startListening()
+    if (!['idle', 'connecting', 'error', 'reconnecting'].includes(stateRef.current)) await avatar.startListening()
   }, [avatar])
 
   const reconnect = useCallback(async () => {
@@ -228,17 +237,37 @@ export function useTutorSession(providers: Providers) {
         if (stateRef.current === 'idle' || stateRef.current === 'connecting') return
         void respond(text)
       }),
+      // The student started talking over the tutor: stop the reply now; the
+      // transcript arrives via onUserSpeech once the utterance is final.
+      avatar.on('onInterrupt', () => {
+        if (stateRef.current !== 'speaking' && stateRef.current !== 'thinking') return
+        generation.current++
+        abortRef.current?.abort()
+        cutOffActiveReply()
+        updateState('listening')
+      }),
       avatar.on('onError', (error) => {
         if (error.code === 'disconnected') {
           void reconnect()
+        } else if (error.code === 'permission') {
+          micOnRef.current = false
+          setMicOn(false)
+          setMicError(error.message)
         } else {
           setErrorMessage(error.message)
           updateState('error')
         }
       }),
+      avatar.on('onRawEvent', (event) => {
+        setRawEvents((prev) => (prev.length >= MAX_RAW_EVENTS ? [...prev.slice(1), event] : [...prev, event]))
+        if (event.source === 'latency') {
+          const ms = (event.payload as { ms?: number } | undefined)?.ms
+          if (typeof ms === 'number') setLatency({ ms, at: event.at })
+        }
+      }),
     ]
     return () => offs.forEach((off) => off())
-  }, [avatar, reconnect, respond, updateState])
+  }, [avatar, cutOffActiveReply, reconnect, respond, updateState])
 
   return {
     state,
@@ -248,6 +277,9 @@ export function useTutorSession(providers: Providers) {
     micOn,
     micError,
     startedAt,
+    rawEvents,
+    latency,
+    clearRawEvents: () => setRawEvents([]),
     startSession,
     endSession,
     sendText,

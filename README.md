@@ -1,15 +1,39 @@
 # AI Tutor — talking avatar frontend
 
 Vite + React + TypeScript + Tailwind frontend for an AI programming tutor with a
-real-time avatar. Everything runs against mock providers today; the real
-Synthesia Interactive Avatar SDK and LLM plug in behind two interfaces.
+real-time avatar. The avatar can be the offline mock or the real Synthesia
+Interactive Avatar (via LiveKit); the brain is still `MockChatProvider`.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:5173 — mock avatar, no server needed
 npm run build    # tsc -b && vite build
 npm run lint
 ```
+
+### Real avatar
+
+```bash
+cp server/.env.example server/.env   # fill in Synthesia / LiveKit / TTS (ElevenLabs or OpenAI) keys (server-only)
+# SYNTHESIA_AVATAR_ID is the gallery id shown in Synthesia (bare UUID or av_-prefixed); it must be
+# available to your workspace. The quickstart's "Jenny" (8788bef1-8020-46e0-a8f4-510ea9989b25) works out of the box.
+(cd server && npm install && npm run dev)   # http://localhost:8787
+cp .env.example .env && sed -i 's/=mock/=synthesia/' .env
+npm run dev                          # Vite proxies /api -> :8787, so the browser only talks to :5173
+```
+
+`VITE_AVATAR_PROVIDER=mock|synthesia` picks the avatar. In dev a bottom-right
+overlay shows raw LiveKit/Synthesia/speech payloads and the latency from the end
+of your utterance to the avatar starting to talk. Speech input uses the browser
+Web Speech API (Chrome/Edge); typing always works.
+
+How the real path works (see `docs/synthesia-mapping.md` for the full write-up):
+the server mints LiveKit tokens, creates a room and asks Synthesia to join it
+(`POST /api/interactive-avatars/sessions`); the browser joins with `livekit-client`,
+attaches the avatar's video/audio tracks in the avatar panel, streams TTS PCM to
+the avatar over the `lk.audio_stream` byte stream, receives
+`lk.playback_started/finished` RPCs, and interrupts with `lk.clear_buffer`.
+On tab close a `sendBeacon` hits `POST /api/session/:id/end` to tear the room down.
 
 ## Architecture
 
@@ -21,29 +45,23 @@ src/providers/
                                         onSpeakingEnd, onError, (onSpeakingProgress)
   avatar/MockAvatarProvider.ts  placeholder avatar, timed word-by-word "speech",
                                 simulated mic transcripts, simulateDisconnect()
+  avatar/SynthesiaAvatarProvider.ts  livekit-client room + Synthesia avatar data-stream protocol
+  speech/SpeechInputProvider.ts  STT interface (WebSpeechInput = browser Web Speech API)
+  speech/SpeechSynthesisProvider.ts  TTS interface (ServerTtsProvider streams PCM from /api/tts)
   chat/ChatProvider.ts          interface: stream(history, signal) -> AsyncIterable<ChatChunk>
   chat/MockChatProvider.ts      canned recursion answers streamed sentence by sentence
   index.ts                      createProviders() — the single swap point
 src/hooks/useTutorSession.ts    session state machine (idle → connecting → listening ⇄
                                 thinking ⇄ speaking, plus error / reconnecting),
                                 transcript, interrupt handling, mic permission flow
-src/components/                 TopBar, AvatarPanel, Transcript, CodePanel, Controls, StartScreen
+src/components/                 TopBar, AvatarPanel, Transcript, CodePanel, Controls, StartScreen, DevOverlay
+server/                         Express: POST /api/session, POST /api/session/:id/end,
+                                POST /api/tts, CORS + rate limits + retries + redacted logs
 ```
 
 Components and the session hook only depend on `AvatarProvider` / `ChatProvider`.
 To go live, implement both interfaces against the real services and return them
 from `createProviders()`.
-
-### Swapping in Synthesia
-
-- `attach(container)` is where the SDK should mount its `<video>`.
-- `speak(text)` should resolve when the utterance finishes or is cut off; emit
-  `onSpeakingStart` / `onSpeakingEnd`, and `onInterrupt` when `stopSpeaking()`
-  cuts an utterance short.
-- Route STT transcripts through `onUserSpeech`; typed input arrives via
-  `sendUserText`.
-- Emit `onError({ code: 'disconnected' })` on a dropped stream — the hook
-  retries `startSession()` and shows the reconnect state.
 
 ### Interrupt semantics
 

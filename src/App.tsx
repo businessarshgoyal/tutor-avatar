@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { AvatarPanel } from './components/AvatarPanel'
 import { CodePanel } from './components/CodePanel'
 import { Controls } from './components/Controls'
+import { DevOverlay } from './components/DevOverlay'
 import { StartScreen } from './components/StartScreen'
 import { TopBar } from './components/TopBar'
 import { Transcript } from './components/Transcript'
@@ -48,6 +49,9 @@ export default function App() {
         onSend={session.sendText}
         onInterrupt={session.interrupt}
       />
+      {import.meta.env.DEV && (
+        <DevOverlay avatarKind={providers.avatarKind} events={session.rawEvents} latency={session.latency} onClear={session.clearRawEvents} />
+      )}
     </div>
   )
 }
