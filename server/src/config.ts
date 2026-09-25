@@ -19,7 +19,9 @@ export const config = {
     avatarIds: required('SYNTHESIA_AVATAR_ID')
       .split(',')
       .map((s) => s.trim())
-      .filter(Boolean),
+      .filter(Boolean)
+      // Gallery ids are shown as bare UUIDs in Synthesia; the API wants the `av_` namespace.
+      .map((id) => (id.startsWith('av_') ? id : `av_${id}`)),
     avatarIdentity: optional('SYNTHESIA_AVATAR_IDENTITY', 'synthesia-avatar-agent'),
   },
   livekit: {

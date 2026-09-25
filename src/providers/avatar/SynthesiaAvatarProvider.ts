@@ -60,7 +60,6 @@ export class SynthesiaAvatarProvider implements AvatarProvider {
   private room: Room | null = null
   private session: BrowserSession | null = null
   private video: HTMLVideoElement | null = null
-  private audio: HTMLAudioElement | null = null
   private attached: RemoteTrack[] = []
   private ttsAbort: AbortController | null = null
   private writer: ByteStreamWriter | null = null
@@ -381,15 +380,12 @@ export class SynthesiaAvatarProvider implements AvatarProvider {
   // ---- mounting ----------------------------------------------------------
 
   attach(container: HTMLElement): void {
+    // Both avatar tracks go into ONE element so they share a MediaStream and stay lip-synced.
     this.video = document.createElement('video')
     this.video.autoplay = true
     this.video.playsInline = true
-    this.video.muted = true
     this.video.className = 'absolute inset-0 h-full w-full object-cover bg-slate-950'
-    this.audio = document.createElement('audio')
-    this.audio.autoplay = true
     container.appendChild(this.video)
-    container.appendChild(this.audio)
     const avatar = this.session && this.room?.remoteParticipants.get(this.session.avatarIdentity)
     avatar?.trackPublications.forEach((pub) => pub.track && this.attachTrack(pub.track))
   }
@@ -397,14 +393,12 @@ export class SynthesiaAvatarProvider implements AvatarProvider {
   detach(): void {
     this.detachTracks()
     this.video?.remove()
-    this.audio?.remove()
-    this.video = this.audio = null
+    this.video = null
   }
 
   private attachTrack(track: RemoteTrack) {
-    const el = track.kind === Track.Kind.Video ? this.video : this.audio
-    if (!el) return
-    track.attach(el)
+    if (!this.video) return
+    track.attach(this.video)
     if (!this.attached.includes(track)) this.attached.push(track)
   }
 
