@@ -27,7 +27,8 @@ export function resolveAvatarKind(): AvatarProviderKind {
  * The brain is still MockChatProvider regardless of the avatar choice.
  */
 export function createProviders(kind: AvatarProviderKind = resolveAvatarKind()): Providers {
-  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8787'
+  // Empty = same origin (Vite dev proxy / reverse proxy in prod).
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
   const avatar: AvatarProvider =
     kind === 'synthesia'
       ? new SynthesiaAvatarProvider({ apiBaseUrl, speechInput: new WebSpeechInput(), tts: new ServerTtsProvider(apiBaseUrl) })

@@ -19,7 +19,7 @@ cp server/.env.example server/.env   # fill in Synthesia / LiveKit / TTS (Eleven
 # available to your workspace. The quickstart's "Jenny" (8788bef1-8020-46e0-a8f4-510ea9989b25) works out of the box.
 (cd server && npm install && npm run dev)   # http://localhost:8787
 cp .env.example .env && sed -i 's/=mock/=synthesia/' .env
-npm run dev
+npm run dev                          # Vite proxies /api -> :8787, so the browser only talks to :5173
 ```
 
 `VITE_AVATAR_PROVIDER=mock|synthesia` picks the avatar. In dev a bottom-right
